@@ -1,0 +1,137 @@
+field,desc,note
+fec_id,varchar(9),committee's id
+committee_name,varchar(256),
+committee_designation,varchar(10),what kind of committee?
+filing_id,int,"filing id, as integer"
+filed_date,date,
+form_type,varchar(10),"eg F3, F3P, F24"
+election_date,date,date of the election
+cycle,varchar(4),date of the 2-year period in which the election takes place (this is always even). Even if it's a special election in an odd year. This is where you'd find it on the FEC site.
+even_year,boolean,"true if this filing covers an even year, false if an odd year. This is important because PACs reset totals at the beginning of a year, not a cycle."
+coverage_from_date,date,first date covered by filing
+coverage_to_date,date,last date covered by filing
+superseded_by_amendment,boolean,there is an amended version of this filing (and this filing is no good anymore)
+amended_by,int,id of filing that amends this filing
+is_amendment,boolean,is this filing an amendment?
+amendment_number,int,"what number amendment? For example, if the original filing has already been amended and this is another amendment, the answer would be 2"
+amends_filing,int,filing listed as the ameded filing
+original_filing,int,"the very first filing for this period, in case there were multiple amendments"
+covered_by_periodic_filing,boolean,filing is no longer the newest because a periodic filing made its contents obsolete
+covered_by,int,which periodic filing made it obsolete?
+newest,boolean,"true if this is the newest version of this filing, false if it is covered by a periodic filing or superseded by an amendment"
+is_f5_quarterly,boolean,
+has_cycle_totals,boolean,cycle totals are present on the raw filing
+lines_present,int,number of lines in this filing
+soft_name,varchar(256),name of software used for filing
+soft_ver,varchar(256),version of software
+process_time,varchar(30),time required to process this filing
+coh_end,"decimal(20,2)",cash on hand at end of filing period
+coh_start,"decimal(20,2)",cash on hand at beginning of filing period
+objects_to_be_liquidated,"decimal(20,2)",total value of non-cash objects waiting to be liquidated
+outstanding_debts,"decimal(20,2)",debt owed by the committee
+period_burn_rate,"decimal(6,2)",100*(period_total_disbursements/period_total_receipts)
+cycle_burn_rate,"decimal(6,2)",100*(cycle_total_disbursements/cycle_total_receipts)
+period_contributions_to_candidates,"decimal(20,2)",see description provided by FEC
+cycle_contributions_to_candidates,"decimal(20,2)",see description provided by FEC
+period_coordinated_expenditures_by_party_committees,"decimal(20,2)",see description provided by FEC
+cycle_coordinated_expenditures_by_party_committees,"decimal(20,2)",see description provided by FEC
+period_federal_election_activity_all_federal,"decimal(20,2)",see description provided by FEC
+cycle_federal_election_activity_all_federal,"decimal(20,2)",see description provided by FEC
+period_federal_election_activity_federal_share,"decimal(20,2)",see description provided by FEC
+cycle_federal_election_activity_federal_share,"decimal(20,2)",see description provided by FEC
+period_federal_election_activity_levin_share,"decimal(20,2)",see description provided by FEC
+cycle_federal_election_activity_levin_share,"decimal(20,2)",see description provided by FEC
+period_federal_election_activity_total,"decimal(20,2)",see description provided by FEC
+cycle_federal_election_activity_total,"decimal(20,2)",see description provided by FEC
+period_federal_refunds,"decimal(20,2)",see description provided by FEC
+cycle_federal_refunds,"decimal(20,2)",see description provided by FEC
+period_fundraising_offsets,"decimal(20,2)",see description provided by FEC
+cycle_fundraising_offsets,"decimal(20,2)",see description provided by FEC
+period_independent_expenditures,"decimal(20,2)",see description provided by FEC
+cycle_independent_expenditures,"decimal(20,2)",see description provided by FEC
+period_legal_offsets,"decimal(20,2)",see description provided by FEC
+cycle_legal_offsets,"decimal(20,2)",see description provided by FEC
+period_levin_funds,"decimal(20,2)",see description provided by FEC
+cycle_levin_funds,"decimal(20,2)",see description provided by FEC
+period_loan_repayments_by_candidate,"decimal(20,2)",see description provided by FEC
+cycle_loan_repayments_by_candidate,"decimal(20,2)",see description provided by FEC
+period_loans_from_candidate,"decimal(20,2)",see description provided by FEC
+cycle_loans_from_candidate,"decimal(20,2)",see description provided by FEC
+period_loans_made,"decimal(20,2)",see description provided by FEC
+cycle_loans_made,"decimal(20,2)",see description provided by FEC
+period_noncandidate_loan_repayments,"decimal(20,2)",see description provided by FEC
+cycle_noncandidate_loan_repayments,"decimal(20,2)",see description provided by FEC
+period_noncandidate_loans,"decimal(20,2)",see description provided by FEC
+cycle_noncandidate_loans,"decimal(20,2)",see description provided by FEC
+period_operating_offsets,"decimal(20,2)",see description provided by FEC
+cycle_operating_offsets,"decimal(20,2)",see description provided by FEC
+period_other_disbursements,"decimal(20,2)",see description provided by FEC
+cycle_other_disbursements,"decimal(20,2)",see description provided by FEC
+period_other_federal_operating_expenditures,"decimal(20,2)",see description provided by FEC
+cycle_other_federal_operating_expenditures,"decimal(20,2)",see description provided by FEC
+period_other_federal_receipts,"decimal(20,2)",see description provided by FEC
+cycle_other_federal_receipts,"decimal(20,2)",see description provided by FEC
+period_refunds_to_individuals,"decimal(20,2)",see description provided by FEC
+cycle_refunds_to_individuals,"decimal(20,2)",see description provided by FEC
+period_refunds_to_nonparty_comms,"decimal(20,2)",see description provided by FEC
+cycle_refunds_to_nonparty_comms,"decimal(20,2)",see description provided by FEC
+period_refunds_to_parties,"decimal(20,2)",see description provided by FEC
+cycle_refunds_to_parties,"decimal(20,2)",see description provided by FEC
+period_shared_operating_expenditures_federal,"decimal(20,2)",see description provided by FEC
+cycle_shared_operating_expenditures_federal,"decimal(20,2)",see description provided by FEC
+period_shared_operating_expenditures_nonfederal,"decimal(20,2)",see description provided by FEC
+cycle_shared_operating_expenditures_nonfederal,"decimal(20,2)",see description provided by FEC
+period_total_candidate,"decimal(20,2)",see description provided by FEC
+cycle_total_candidate,"decimal(20,2)",see description provided by FEC
+period_total_contributions,"decimal(20,2)",see description provided by FEC
+cycle_total_contributions,"decimal(20,2)",see description provided by FEC
+period_total_contributions_indiv,"decimal(20,2)",see description provided by FEC
+cycle_total_contributions_indiv,"decimal(20,2)",see description provided by FEC
+period_total_coordinated,"decimal(20,2)",see description provided by FEC
+cycle_total_coordinated,"decimal(20,2)",see description provided by FEC
+period_total_disbursements,"decimal(20,2)",see description provided by FEC
+cycle_total_disbursements,"decimal(20,2)",see description provided by FEC
+period_total_exempt_legal_disbursements,"decimal(20,2)",see description provided by FEC
+cycle_total_exempt_legal_disbursements,"decimal(20,2)",see description provided by FEC
+period_total_federal_disbursements,"decimal(20,2)",see description provided by FEC
+cycle_total_federal_disbursements,"decimal(20,2)",see description provided by FEC
+period_total_federal_operating_expenditures,"decimal(20,2)",see description provided by FEC
+cycle_total_federal_operating_expenditures,"decimal(20,2)",see description provided by FEC
+period_total_federal_receipts,"decimal(20,2)",see description provided by FEC
+cycle_total_federal_receipts,"decimal(20,2)",see description provided by FEC
+period_total_fundraising_disbursements,"decimal(20,2)",see description provided by FEC
+cycle_total_fundraising_disbursements,"decimal(20,2)",see description provided by FEC
+period_total_ies,"decimal(20,2)",see description provided by FEC
+cycle_total_ies,"decimal(20,2)",see description provided by FEC
+period_total_itemized_indiv,"decimal(20,2)",see description provided by FEC
+cycle_total_itemized_indiv,"decimal(20,2)",see description provided by FEC
+period_total_loan_repayments,"decimal(20,2)",see description provided by FEC
+cycle_total_loan_repayments,"decimal(20,2)",see description provided by FEC
+period_total_loan_repayments_received,"decimal(20,2)",see description provided by FEC
+cycle_total_loan_repayments_received,"decimal(20,2)",see description provided by FEC
+period_total_loans_received,"decimal(20,2)",see description provided by FEC
+cycle_total_loans_received,"decimal(20,2)",see description provided by FEC
+period_total_nonfederal_transfers,"decimal(20,2)",see description provided by FEC
+cycle_total_nonfederal_transfers,"decimal(20,2)",see description provided by FEC
+period_total_nonparty_comms,"decimal(20,2)",see description provided by FEC
+cycle_total_nonparty_comms,"decimal(20,2)",see description provided by FEC
+period_total_offsets,"decimal(20,2)",see description provided by FEC
+cycle_total_offsets,"decimal(20,2)",see description provided by FEC
+period_total_operating_expenditures,"decimal(20,2)",see description provided by FEC
+cycle_total_operating_expenditures,"decimal(20,2)",see description provided by FEC
+period_total_parties,"decimal(20,2)",see description provided by FEC
+cycle_total_parties,"decimal(20,2)",see description provided by FEC
+period_total_receipts,"decimal(20,2)",see description provided by FEC
+cycle_total_receipts,"decimal(20,2)",see description provided by FEC
+period_total_refunds,"decimal(20,2)",see description provided by FEC
+cycle_total_refunds,"decimal(20,2)",see description provided by FEC
+period_total_transfers_from_auth_comms,"decimal(20,2)",see description provided by FEC
+cycle_total_transfers_from_auth_comms,"decimal(20,2)",see description provided by FEC
+period_total_transfers_to_auth_comms,"decimal(20,2)",see description provided by FEC
+cycle_total_transfers_to_auth_comms,"decimal(20,2)",see description provided by FEC
+period_total_unitemized_indiv,"decimal(20,2)",see description provided by FEC
+cycle_total_unitemized_indiv,"decimal(20,2)",see description provided by FEC
+period_transfers_from_nonfederal_h3,"decimal(20,2)",see description provided by FEC
+cycle_transfers_from_nonfederal_h3,"decimal(20,2)",see description provided by FEC
+period_transfers_to_affiliated,"decimal(20,2)",see description provided by FEC
+cycle_transfers_to_affiliated,"decimal(20,2)",see description provided by FEC
