@@ -2,7 +2,7 @@ field,desc,note
 fec_id,varchar(9),committee's id
 committee_name,varchar(256),
 committee_designation,varchar(10),what kind of committee?
-filing_id,int,"filing id, as integer"
+filing_id,int primary key,"filing id, as integer, this is the primary key for filing"
 filed_date,date,
 form_type,varchar(10),"eg F3, F3P, F24"
 election_date,date,date of the election
@@ -20,7 +20,9 @@ covered_by_periodic_filing,boolean,filing is no longer the newest because a peri
 covered_by,int,which periodic filing made it obsolete?
 newest,boolean,"true if this is the newest version of this filing, false if it is covered by a periodic filing or superseded by an amendment"
 is_f5_quarterly,boolean,
+is_periodic,boolean,is this a periodic filing?
 has_cycle_totals,boolean,cycle totals are present on the raw filing
+transactions_status,varchar(255),the status of the transaction load, expected values here are 'not loaded', 'loading', 'error' and 'loaded'
 lines_present,int,number of lines in this filing
 soft_name,varchar(256),name of software used for filing
 soft_ver,varchar(256),version of software

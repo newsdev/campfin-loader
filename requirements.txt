@@ -1,1 +1,3 @@
 psycopg2==2.7.1
+-e git+https://github.com/newsdev/nyt-pyfec.git@flat-files#egg=nyt-pyfec
+

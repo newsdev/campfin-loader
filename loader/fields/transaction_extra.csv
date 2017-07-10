@@ -1,0 +1,7 @@
+field,desc,note
+id,serial primary key,
+filing_id,int,the id of the filing
+committee_name,int,name of filing committee
+superseded_by_amendment,boolean,there is an amended version of this transaction's filing (and this transaction is no good anymore)
+covered_by_periodic_filing,boolean,transaction is no longer the newest because a periodic filing made its contents obsolete
+newest,boolean,"true if this is the newest version of this transaction, false if it is covered by a periodic filing or superseded by an amendment"

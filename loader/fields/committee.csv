@@ -1,0 +1,10 @@
+field,desc,note
+fec_id,varchar(9) primary key,fec's ID for the commitee
+committee_name,varchar(256),
+cycle,int,
+frequency,varchar(1),how often the committee files
+committee_type,varchar(1),as designated by the fec
+committee_designation,varchar(1),as designated by the fec
+most_recent_periodic,int,id of most recent periodic report filed by this committee (this is where to look for aggregate totals)
+most_recent_coverage_date,date,coverage_to_date of most recent periodic report
+details_loaded,boolean,have we looked in the FEC's api to populate the details of this committee?
