@@ -281,6 +281,44 @@ class Loader(object):
         self.db_connection.commit()
         return
 
+    def drop_temp_tables(self, filing_id):
+        if not self.db_connection:
+            self.connect_to_db()
+
+        cur = self.db_connection.cursor()
+        for t in ['receipt', 'expenditure', 'independent_expenditure']:
+            stmt = 'drop table if exists {}_{}_temp;'.format(t, filing_id)
+            cur.execute(stmt)
+
+        self.db_connection.commit()
+
+
+    def run_copy_statement(self, filing_id, rows, table, cur):
+        sked_string = io.StringIO()
+        fieldnames = [f['field'] for f in self.get_fields_from_file(table)]
+        writer = csv.DictWriter(sked_string, fieldnames)
+        writer.writerows(rows)
+        sked_string.seek(0)
+        copy_stmt = "COPY {}_{}_temp FROM STDIN WITH (FORMAT CSV)".format(table, filing_id)
+        cur.copy_expert(copy_stmt, sked_string)
+
+    def get_insert_statement(self, filing_id, committee_name, table):
+        fieldnames = [f['field'] for f in self.get_fields_from_file(table)]
+        stmt = "insert into {table} ({fields}, filing_id, committee_name, superseded_by_amendment, covered_by_periodic_filing, newest)"
+        stmt += " (select {fields}, {filing_id}, '{committee_name}', False, False, True from {table}_{filing_id}_temp)"
+        stmt = stmt.format(table=table, fields=','.join(fieldnames), filing_id=filing_id, committee_name=committee_name)
+        print(stmt)
+        return stmt
+
+    def set_filing_status(self, filing_id, status):
+        if not self.db_connection:
+            self.connect_to_db()
+
+        cur = self.db_connection.cursor()
+        stmt = "update filing set transactions_status='{}' where filing_id={}".format(status, filing_id)
+        cur.execute(stmt)
+
+        self.db_connection.commit()
 
     def load_lines(self, f=None, filing_id=None, line_type=None, check_cols=True):
         if not filing_id and not f:
@@ -289,32 +327,52 @@ class Loader(object):
         elif not f:
             f = filing.Filing(filing_id)
 
+        committee_name = f.fields['committee_name']
+
+
         if not self.db_connection:
             self.connect_to_db()
-
+        
         cur = self.db_connection.cursor()
         stmt = "select transactions_status from filing where filing_id={}".format(f.filing_id)
         cur.execute(stmt)
         if cur.fetchone()[0] in ['not loaded', 'error']:
-            stmt = "update filing set transactions_status='loading' where filing_id={}".format(f.filing_id)
-            cur.execute(stmt)
-            self.db_connection.commit()
+            self.set_filing_status(f.filing_id, 'loading')
+            
+            try:
+                self.run_copy_statement(f.filing_id, f.get_skeda(), 'receipt', cur)
+                self.run_copy_statement(f.filing_id, f.get_skedb(), 'expenditure', cur)
+                self.run_copy_statement(f.filing_id, f.get_skede(), 'independent_expenditure', cur)
+            except Exception as e:
+                print("load failed")
+                print(e)
+                self.set_filing_status(f.filing_id, 'error')
+                return False
 
-            #TODO wrap this all in a try and if it fails reset status to "error", if successful, reset status to "loaded"
-            skeda_string = io.StringIO()
-            fieldnames = [f['field'] for f in self.get_fields_from_file('receipt')]
-            writer = csv.DictWriter(skeda_string, fieldnames)
-            writer.writerows(f.get_skeda())
-            skeda_string.seek(0)
-            copy_stmt = "COPY receipt_{}_temp FROM STDIN WITH (FORMAT CSV)".format(f.filing_id)
-            cur.copy_expert(copy_stmt, skeda_string)
-            #TODO load skedb
-            #TODO load skede
+            try:
+                #separating out the commit to make it clearer when there's a data problem vs a db problem
+                self.db_connection.commit()
+            except Exception as e:
+                print("load failed")
+                print(e)
+                self.set_filing_status(f.filing_id, 'error')
+                return False
+            try:
+                cur.execute(self.get_insert_statement(f.filing_id, committee_name, 'receipt'))
+                cur.execute(self.get_insert_statement(f.filing_id, committee_name, 'expenditure'))
+                cur.execute(self.get_insert_statement(f.filing_id, committee_name, 'independent_expenditure'))
+                self.db_connection.commit()
 
-            self.db_connection.commit()
-            stmt = "update filing set transactions_status='loading' where filing_id={}".format(f.filing_id)
+            except Exception as e:
+                print("load failed")
+                print(e)
+                self.set_filing_status(f.filing_id, 'error')
+                self.drop_temp_tables(f.filing_id)
+                return False
+
+            self.set_filing_status(f.filing_id, 'loaded')
+            return True
+
 
         else:
             return False
-        #the initial load happens in a bash script because it's way more efficient
-        #I want to make it all doable via python, so I'm just running the script here.
