@@ -8,6 +8,9 @@ import requests
 from pyfec import form
 from pyfec import filing
 
+#TODO index the shit out of these tables
+
+
 class Loader(object):
     
     def __init__(self, db_name, db_host, db_user, db_password=None):
@@ -93,10 +96,7 @@ class Loader(object):
         for table in ['receipt', 'expenditure', 'independent_expenditure']:
             table_name = "{}_{}_temp".format(table, filing_id)
             cur.execute("select * from information_schema.tables where table_name=%s", (table_name,))
-            print(table_name)
-            print(cur.fetchall())
-            print(cur.rowcount)
-            print(bool(cur.rowcount))
+
             if bool(cur.rowcount):
                 #bool(cur.rowcount) is false iff there are zero rows
                 print("temp tables already exist for this filing, it is probably in the process of being loaded")
@@ -151,7 +151,7 @@ class Loader(object):
         if not self.db_connection:
             self.connect_to_db()
 
-        cur = self.db_connection.cursor()
+        cur = self.db_connection.cursor(cursor_factory=psycopg2.extras.DictCursor)
 
         if check_cols:
             if len(self.check_columns('filing')) > 0:
@@ -162,12 +162,30 @@ class Loader(object):
         rows = cur.fetchall()
         if len(rows) > 0:
             print("We've already loaded filing {}".format(filing_id))
+            #pull up the filing anyway if the transactions errored before
+            if rows[0]['transactions_status'] in ['error', 'not_loaded']:
+                print("But the transactions are not loaded so we're going to pull up the filing and try again")
+                return filing.Filing(filing_id)
+            if rows[0]['transactions_status'] == 'loading':
+                print("And the transactions are still loading from a previous run, if this doesn't resolve within a few minutes, check to confirm everything's OK")
             return
-
-        f1 = filing.Filing(filing_id)
+        try:
+            f1 = filing.Filing(filing_id)
+        except NotImplementedError:
+            print("This filing type is not implemented in pyfec, not importing filing {}".format(filing_id))
+            return
+        except Exception as e:
+            print("unexpected error trying to load filing {}: {}".format(filing_id, e))
+            return
         filing_fields = f1.fields
-
         #check for previous filings that need to be marked as amended
+        if not filing_fields:
+            #if the field is unparseable (because it's not in allowed forms)
+            #it returns {} for filing_fields. We should probably fix this in pyfec
+            #but for now, this will work
+            print("unparseable form")
+            return
+        print(filing_fields['form_type'])
         if filing_fields['is_amendment']:
             amends_filing = filing_fields['amends_filing']
             #mark that filing as amended and newest=False
@@ -181,9 +199,8 @@ class Loader(object):
             #TODO: do this. there's some logic in campfin that we should follow in terms of deactivating transactions. This gets gross
 
         #do load
-        print(filing_fields)
         filing_keys = filing_fields.keys()
-        col_list = ', '.join(filing_keys) + ", superseded_by_amendment, covered_by_periodic_filing, newest, filing_status"
+        col_list = ', '.join(filing_keys) + ", superseded_by_amendment, covered_by_periodic_filing, newest, transactions_status"
         vals = [filing_fields[k] for k in filing_keys]
         vals = vals + [False, False, True, "not loaded"]
         vals = tuple(vals)
@@ -192,11 +209,14 @@ class Loader(object):
         cur.execute(stmt, vals)
         self.db_connection.commit()
 
+        return f1
+
     def find_most_recent_periodic(self, fec_id):
         #finds the most recent periodic filing for the committee specified in fec_id
         if not self.db_connection:
             self.connect_to_db()
 
+    def load_single_filing(self, filing_id):
         cur = self.db_connection.cursor(cursor_factory=psycopg2.extras.DictCursor)
         stmt = """select filing_id, coverage_to_date from filing
                 where fec_id = '{}' and is_periodic = True
@@ -305,10 +325,10 @@ class Loader(object):
     def get_insert_statement(self, filing_id, committee_name, table):
         fieldnames = [f['field'] for f in self.get_fields_from_file(table)]
         stmt = "insert into {table} ({fields}, filing_id, committee_name, superseded_by_amendment, covered_by_periodic_filing, newest)"
-        stmt += " (select {fields}, {filing_id}, '{committee_name}', False, False, True from {table}_{filing_id}_temp)"
-        stmt = stmt.format(table=table, fields=','.join(fieldnames), filing_id=filing_id, committee_name=committee_name)
-        print(stmt)
-        return stmt
+        stmt += " (select {fields}, %s, %s, %s, %s, %s from {table}_{filing_id}_temp)"
+        stmt = stmt.format(table=table, fields=','.join(fieldnames), filing_id=filing_id)
+        args = (filing_id, committee_name, False, False, True)
+        return stmt, args
 
     def set_filing_status(self, filing_id, status):
         if not self.db_connection:
@@ -358,9 +378,9 @@ class Loader(object):
                 self.set_filing_status(f.filing_id, 'error')
                 return False
             try:
-                cur.execute(self.get_insert_statement(f.filing_id, committee_name, 'receipt'))
-                cur.execute(self.get_insert_statement(f.filing_id, committee_name, 'expenditure'))
-                cur.execute(self.get_insert_statement(f.filing_id, committee_name, 'independent_expenditure'))
+                for transaction_type in ['receipt', 'expenditure', 'independent_expenditure']:
+                    stmt, args = self.get_insert_statement(f.filing_id, committee_name, transaction_type)
+                    cur.execute(stmt, args)
                 self.db_connection.commit()
 
             except Exception as e:
@@ -376,3 +396,48 @@ class Loader(object):
 
         else:
             return False
+
+    def complete_load(self, filing_id, fec_api_key=None, check_tables=True):
+        #does the complete load process for a single filing
+        
+        if check_tables:
+            #making this optional so we can skip it if we're doing a lot
+            #of filings in a row with the same loader to save time
+            self.create_or_alter_tables('filing')
+            self.create_or_alter_tables('committee')
+
+        #TODO we should probably make clear when we get the summary but fail on the transactions
+        f  = self.load_filing_summary(filing_id, True)
+        if f:
+            if f.fields['form_type'] in ['F99']:
+                #otherwise we try to parse the text of F99s and that's bad, we might want to factor out a bad_forms list somewhere
+                print("we only load headers for forms of type {}".format(f.fields['form_type']))
+                return
+            #if this is None, we already have this filing loaded, yay!
+            self.load_committee_details(f.fields['fec_id'], f.fields['committee_name'], fec_api_key)
+
+            self.add_most_recent_periodic(f.fields['fec_id'])
+
+            self.prep_transaction_tables(filing_id)
+
+            lines_loaded = self.load_lines(f=f)
+            if lines_loaded:
+                print("lines successfully loaded for filing {}".format(filing_id))
+            else:
+                print("lines failed for filing {}".format(filing_id))
+
+            self.drop_temp_tables(filing_id=filing_id)
+
+        else:
+            print("did not load summary or transactions for filing {}".format(filing_id))
+
+    def load_filing_list(self, filing_ids, fec_api_key):
+        #filing_ids is a list of filings
+
+        #check the big tables once so we cab skip it on each individual filing
+        self.create_or_alter_tables('filing')
+        self.create_or_alter_tables('committee')
+
+        for filing_id in filing_ids:
+            self.complete_load(filing_id, fec_api_key=fec_api_key, check_tables=False)
+
