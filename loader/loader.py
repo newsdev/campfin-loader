@@ -4,9 +4,11 @@ import io
 import psycopg2
 import psycopg2.extras
 import requests
+import logging
 
 from pyfec import form
 from pyfec import filing
+
 
 #TODO index the shit out of these tables
 
@@ -14,6 +16,8 @@ from pyfec import filing
 class Loader(object):
     
     def __init__(self, db_name, db_host, db_user, db_password=None):
+        logging.basicConfig(level=logging.DEBUG,
+                    format='%(asctime)s %(levelname)s %(message)s')
         self.db_name = db_name
         self.db_host = db_host
         self.db_user = db_user
@@ -28,9 +32,10 @@ class Loader(object):
                 password=self.db_password,
                 host=self.db_host)
         except psycopg2.Error as e:
-            print('failed to connect to db')
-            pass
-            #we're actually going to want to log this error when we get around to logging
+            logging.critical('failed to connect to db')
+            return
+
+        logging.info('connected to DB!')
 
     def get_fields_from_file(self, tablename, transaction_table=False):
         cwd = os.path.dirname(os.path.realpath(__file__))
@@ -39,7 +44,7 @@ class Loader(object):
             f = open(p, 'r')
 
         except FileNotFoundError:
-            print("file {} not found".format(p))
+            logging.critical("file {} not found".format(p))
             return None
         
         reader = csv.DictReader(f)
@@ -99,7 +104,7 @@ class Loader(object):
 
             if bool(cur.rowcount):
                 #bool(cur.rowcount) is false iff there are zero rows
-                print("temp tables already exist for this filing, it is probably in the process of being loaded")
+                logging.info("temp tables already exist for this filing, it is probably in the process of being loaded")
                 continue
             reader = self.get_fields_from_file(table, False)
             assert reader, "Unknown table name {}".format(table)
@@ -161,21 +166,22 @@ class Loader(object):
         cur.execute("select * from filing where filing_id = {}".format(filing_id))
         rows = cur.fetchall()
         if len(rows) > 0:
-            print("We've already loaded filing {}".format(filing_id))
+            stmt = "We've already loaded filing {}".format(filing_id)
             #pull up the filing anyway if the transactions errored before
             if rows[0]['transactions_status'] in ['error', 'not_loaded']:
-                print("But the transactions are not loaded so we're going to pull up the filing and try again")
+                logging.info(stmt + " but the transactions are not loaded so we're going to pull up the filing and try again")
                 return filing.Filing(filing_id)
             if rows[0]['transactions_status'] == 'loading':
-                print("And the transactions are still loading from a previous run, if this doesn't resolve within a few minutes, check to confirm everything's OK")
+                stmt += " and the transactions are still loading from a previous run, if this doesn't resolve within a few minutes, check to confirm everything's OK"
+            logging.info(stmt)
             return
         try:
             f1 = filing.Filing(filing_id)
         except NotImplementedError:
-            print("This filing type is not implemented in pyfec, not importing filing {}".format(filing_id))
+            logging.info("This filing type is not implemented in pyfec, not importing filing {}".format(filing_id))
             return
         except Exception as e:
-            print("unexpected error trying to load filing {}: {}".format(filing_id, e))
+            logging.critical("unexpected error trying to load filing {}: {}".format(filing_id, e))
             return
         filing_fields = f1.fields
         #check for previous filings that need to be marked as amended
@@ -183,9 +189,8 @@ class Loader(object):
             #if the field is unparseable (because it's not in allowed forms)
             #it returns {} for filing_fields. We should probably fix this in pyfec
             #but for now, this will work
-            print("unparseable form")
+            logging.warning("unparseable form")
             return
-        print(filing_fields['form_type'])
         if filing_fields['is_amendment']:
             amends_filing = filing_fields['amends_filing']
             #mark that filing as amended and newest=False
@@ -228,6 +233,7 @@ class Loader(object):
         return None
 
     def add_most_recent_periodic(self, fec_id):
+        #TODO I think this is broken
         print("searching for most recent periodic")
         most_recent = self.find_most_recent_periodic(fec_id)
         if most_recent:
@@ -259,7 +265,7 @@ class Loader(object):
         cur.execute("select * from committee where fec_id = '{}'".format(fec_id))
         rows = cur.fetchall()
         if len(rows) > 1:
-            print("this is very bad, we've got multiple committees with the same ID")
+            logging.critical("this is very bad, we've got multiple committees with the same ID")
             return
         elif len(rows) == 1 and rows[0]['details_loaded']:
             #we already know about this committee and have loaded its details, so we're good to go
@@ -287,7 +293,7 @@ class Loader(object):
             return
 
         except KeyError:
-            print("We've used up our fec api calls, we'll load this committee's details another time")
+            logging.warning("We've used up our fec api calls, we'll load this committee's details another time")
             if len(rows) == 0:
                 cur.execute("insert into committee (fec_id, committee_name, details_loaded) values (%s, %s, %s)", (fec_id, committee_name, False))
                 self.db_connection.commit()
@@ -342,7 +348,7 @@ class Loader(object):
 
     def load_lines(self, f=None, filing_id=None, line_type=None, check_cols=True):
         if not filing_id and not f:
-            print("Specify either a filing or a filing_id")
+            logging.warning("Specify either a filing or a filing_id")
             return False
         elif not f:
             f = filing.Filing(filing_id)
@@ -364,8 +370,7 @@ class Loader(object):
                 self.run_copy_statement(f.filing_id, f.get_skedb(), 'expenditure', cur)
                 self.run_copy_statement(f.filing_id, f.get_skede(), 'independent_expenditure', cur)
             except Exception as e:
-                print("load failed")
-                print(e)
+                logging.critical("load failed: {}".format(e))
                 self.set_filing_status(f.filing_id, 'error')
                 return False
 
@@ -373,8 +378,7 @@ class Loader(object):
                 #separating out the commit to make it clearer when there's a data problem vs a db problem
                 self.db_connection.commit()
             except Exception as e:
-                print("load failed")
-                print(e)
+                logging.critical("load failed: {}".format(e))
                 self.set_filing_status(f.filing_id, 'error')
                 return False
             try:
@@ -384,8 +388,7 @@ class Loader(object):
                 self.db_connection.commit()
 
             except Exception as e:
-                print("load failed")
-                print(e)
+                logging.critical("load failed: {}".format(e))
                 self.set_filing_status(f.filing_id, 'error')
                 self.drop_temp_tables(f.filing_id)
                 return False
@@ -396,6 +399,24 @@ class Loader(object):
 
         else:
             return False
+
+    def clean_up_database(self):
+        #drops all temporary tables
+        if not self.db_connection:
+            self.connect_to_db()
+
+        cur = self.db_connection.cursor()
+        stmt = "select relname from pg_class where relkind='r' and relname !~ '^(pg_|sql_)'"
+        cur.execute(stmt)
+        tables = cur.fetchall()
+        for table in tables:
+            if table[0].endswith("_temp"):
+                stmt = 'drop table {}'.format(table[0])
+                logger.info("Dropping table {}".format(table[0]))
+                cur.execute(stmt)
+
+        self.db_connection.commit()
+
 
     def complete_load(self, filing_id, fec_api_key=None, check_tables=True):
         #does the complete load process for a single filing
@@ -411,7 +432,7 @@ class Loader(object):
         if f:
             if f.fields['form_type'] in ['F99']:
                 #otherwise we try to parse the text of F99s and that's bad, we might want to factor out a bad_forms list somewhere
-                print("we only load headers for forms of type {}".format(f.fields['form_type']))
+                logging.info("we only load headers for forms of type {}".format(f.fields['form_type']))
                 return
             #if this is None, we already have this filing loaded, yay!
             self.load_committee_details(f.fields['fec_id'], f.fields['committee_name'], fec_api_key)
@@ -422,14 +443,14 @@ class Loader(object):
 
             lines_loaded = self.load_lines(f=f)
             if lines_loaded:
-                print("lines successfully loaded for filing {}".format(filing_id))
+                logging.info("lines successfully loaded for filing {}".format(filing_id))
             else:
-                print("lines failed for filing {}".format(filing_id))
+                logging.critical("lines failed for filing {}".format(filing_id))
 
             self.drop_temp_tables(filing_id=filing_id)
 
         else:
-            print("did not load summary or transactions for filing {}".format(filing_id))
+            logging.info("did not load summary or transactions for filing {}".format(filing_id))
 
     def load_filing_list(self, filing_ids, fec_api_key):
         #filing_ids is a list of filings
@@ -439,5 +460,10 @@ class Loader(object):
         self.create_or_alter_tables('committee')
 
         for filing_id in filing_ids:
-            self.complete_load(filing_id, fec_api_key=fec_api_key, check_tables=False)
+            try:
+                self.complete_load(filing_id, fec_api_key=fec_api_key, check_tables=False)
+            except Exception as e:
+                self.logger.critical("Skippig fiilng {}, something went wrong: {}".format(filing_id, e))
+                continue
 
+    
